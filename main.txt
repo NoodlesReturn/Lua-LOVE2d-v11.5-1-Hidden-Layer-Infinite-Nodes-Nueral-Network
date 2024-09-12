@@ -1,0 +1,482 @@
+-- Neural Network Class
+layerRectStartY = {}
+layerRectStartY.__index = layerRectStartY
+
+function layerRectStartY:create(inputNodes, hiddenNodes, outputNodes)
+  local nn = {}
+  setmetatable(nn, layerRectStartY)
+
+  -- Initialize network structure
+  nn.inputNodes = inputNodes
+  nn.hiddenNodes = hiddenNodes
+  nn.outputNodes = outputNodes
+
+  -- Randomly initialize weights
+  nn.weightsInputHidden = {}
+  nn.weightsHiddenOutput = {}
+
+  -- Initialize weights from input to hidden layer
+  for i = 1, hiddenNodes do
+    nn.weightsInputHidden[i] = {}
+    for j = 1, inputNodes do
+      nn.weightsInputHidden[i][j] = love.math.random() * 2 - 1
+    end
+  end
+
+  -- Initialize weights from hidden to output layer
+  for i = 1, outputNodes do
+    nn.weightsHiddenOutput[i] = {}
+    for j = 1, hiddenNodes do
+      nn.weightsHiddenOutput[i][j] = love.math.random() * 2 - 1
+    end
+  end
+
+  -- Biases
+  nn.biasHidden = {}
+  nn.biasOutput = {}
+
+  -- Initialize biases for the hidden layer
+  for i = 1, hiddenNodes do
+    nn.biasHidden[i] = love.math.random() * 2 - 1
+  end
+
+  -- Initialize biases for the output layer
+  for i = 1, outputNodes do
+    nn.biasOutput[i] = love.math.random() * 2 - 1
+  end
+
+  return nn
+end
+
+-- Activation function (sigmoid)
+function sigmoid(x)
+  return 1 / (1 + math.exp(-x))
+end
+
+-- Feedforward function
+function layerRectStartY:feedforward(inputArray)
+  -- Generate hidden outputs
+  local hidden = {}
+  for i = 1, self.hiddenNodes do
+    hidden[i] = 0
+    for j = 1, self.inputNodes do
+      hidden[i] = hidden[i] + inputArray[j] * self.weightsInputHidden[i][j]
+    end
+    hidden[i] = hidden[i] + self.biasHidden[i]
+    hidden[i] = sigmoid(hidden[i])
+  end
+
+  -- Generate final output
+  local output = {}
+  for i = 1, self.outputNodes do
+    output[i] = 0
+    for j = 1, self.hiddenNodes do
+      output[i] = output[i] + hidden[j] * self.weightsHiddenOutput[i][j]
+    end
+    output[i] = output[i] + self.biasOutput[i]
+    output[i] = sigmoid(output[i])
+  end
+
+  -- Return both hidden and output layers
+  return hidden, output
+end
+
+-- Training function
+function layerRectStartY:train(inputs, targets, learningRate)
+  -- Feedforward pass to get hidden and output values
+  local hiddenOutputs, finalOutputs = self:feedforward(inputs)
+
+  -- Calculate output layer errors
+  local outputErrors = {}
+  for i = 1, self.outputNodes do
+    outputErrors[i] = targets[i] - finalOutputs[i]
+  end
+
+  -- Calculate gradients and adjust weights and biases for the output layer
+  local outputGradients = {}
+  for i = 1, self.outputNodes do
+    local gradient = outputErrors[i] * finalOutputs[i] * (1 - finalOutputs[i])
+    outputGradients[i] = gradient * learningRate
+
+    -- Adjust biases for output nodes
+    self.biasOutput[i] = self.biasOutput[i] + outputGradients[i]
+
+    -- Adjust weights between hidden and output layer
+    for j = 1, self.hiddenNodes do
+      self.weightsHiddenOutput[i][j] = self.weightsHiddenOutput[i][j] + outputGradients[i] * hiddenOutputs[j]
+    end
+  end
+
+  -- Calculate hidden layer errors
+  local hiddenErrors = {}
+  for i = 1, self.hiddenNodes do
+    hiddenErrors[i] = 0
+    for j = 1, self.outputNodes do
+      hiddenErrors[i] = hiddenErrors[i] + outputErrors[j] * self.weightsHiddenOutput[j][i]
+    end
+  end
+
+  -- Adjust weights and biases for the hidden layer
+  for i = 1, self.hiddenNodes do
+    local hiddenOutput = hiddenOutputs[i]
+    local gradient = hiddenErrors[i] * hiddenOutput * (1 - hiddenOutput)
+    local hiddenGradients = gradient * learningRate
+
+    -- Adjust biases for hidden nodes
+    self.biasHidden[i] = self.biasHidden[i] + hiddenGradients
+
+    -- Adjust weights between input and hidden layer
+    for j = 1, self.inputNodes do
+      self.weightsInputHidden[i][j] = self.weightsInputHidden[i][j] + hiddenGradients * inputs[j]
+    end
+  end
+
+  -- Return the error value for visualization
+  return math.abs(outputErrors[1]) -- Return absolute error for visualization
+end
+
+-- Initialize the network and other variables
+function love.load()
+  love.window.setMode(1720, 880)
+
+  -- Define the number of input, hidden, and output nodes dynamically
+  local inputNodes = 4
+  local hiddenNodes = 5
+  local outputNodes = 3
+
+  -- Create the neural network with user-defined structure
+  nn = layerRectStartY:create(inputNodes, hiddenNodes, outputNodes)
+
+  -- Example training data (dummy data adjusted to match the number of input and output nodes)
+  trainingData = {
+    {inputs = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, target = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0}},
+    {inputs = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, target = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}},
+    {inputs = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0}, target = {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1}},
+    {inputs = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}, target = {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0}},
+    {inputs = {0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, target = {0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0}},
+    {inputs = {1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1}, target = {1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1}},
+    {inputs = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, target = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0}},
+    {inputs = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, target = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}},
+    {inputs = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0}, target = {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1}},
+    {inputs = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}, target = {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0}},
+    {inputs = {0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, target = {0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0}},
+    {inputs = {1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1}, target = {1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1}},
+    {inputs = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, target = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0}},
+    {inputs = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, target = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}},
+    {inputs = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0}, target = {0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1}},
+    {inputs = {1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}, target = {1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0}},
+    {inputs = {0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0}, target = {0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0}},
+    {inputs = {1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1}, target = {1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1}},
+    -- Add more training data as needed
+  }
+
+  -- Training control variables
+  isTraining = false
+  trainingIndex = 1
+  learningRate = 0.1
+  errorHistory = {}  -- Track errors for visualization
+  maxEpochs = 10000  -- Set this to a large enough number
+  currentEpoch = 0
+end
+-- Update function for training
+function love.update(dt)
+  if isTraining then
+    -- Perform one training step with the current training data
+    local data = trainingData[trainingIndex]
+    local inputs = data.inputs
+    local target = data.target
+
+    -- Train the network and get the error
+    local errorValue = nn:train(inputs, target, learningRate)
+
+    -- Store the error for visualization
+    table.insert(errorHistory, errorValue)
+    -- Limit error history to prevent excessive memory usage
+    if #errorHistory > 1000 then
+      table.remove(errorHistory, 1)
+    end
+
+    -- Move to the next training sample
+    trainingIndex = trainingIndex + 1
+    if trainingIndex > #trainingData then
+      trainingIndex = 1
+    end
+
+    -- Increment epoch count
+    currentEpoch = currentEpoch + 1
+    if currentEpoch >= maxEpochs then
+      isTraining = false
+    end
+  end
+end
+
+
+function getPerimeterPoint(centerX, centerY, targetX, targetY, radius)
+  local angle = math.atan2(targetY - centerY, targetX - centerX)
+  local perimeterX = centerX + radius * math.cos(angle)
+  local perimeterY = centerY + radius * math.sin(angle)
+  return perimeterX, perimeterY
+end
+
+function love.draw()
+  -- Set background color
+  love.graphics.clear(0.2, 0.2, 0.2)
+
+  -- Constants
+  local nodeRadius = 20
+  local nodeSpacing = 80
+  local maxNodesPerColumn = 5  -- Maximum nodes per column for the input/output layer
+
+  -- Calculate the starting Y value for all layers (30 less than Neural Network rectangle's Y value)
+
+  local NeuralNetworkRectY = 100
+  local layerRectStartY = NeuralNetworkRectY + 90
+
+  -- Input Layer Positioning
+  local inputColumns = math.ceil(nn.inputNodes / maxNodesPerColumn)
+  local inputRows = math.min(nn.inputNodes, maxNodesPerColumn)
+  local inputWidth = inputColumns * nodeSpacing
+  local inputHeight = inputRows * nodeSpacing
+  local inputX, inputY = 380, layerRectStartY  -- Use the same Y value for all layers
+
+  -- Hidden Layer Positioning
+  local hiddenColumns = math.ceil(nn.hiddenNodes / maxNodesPerColumn)
+  local hiddenRows = math.min(nn.hiddenNodes, maxNodesPerColumn)
+  local hiddenWidth = hiddenColumns * nodeSpacing
+  local hiddenHeight = hiddenRows * nodeSpacing
+  local hiddenX, hiddenY = inputX + inputWidth + 160, layerRectStartY  -- Adjusted based on input width
+
+  -- Output Layer Positioning
+  local outputColumns = math.ceil(nn.outputNodes / maxNodesPerColumn)
+  local outputRows = math.min(nn.outputNodes, maxNodesPerColumn)
+  local outputWidth = outputColumns * nodeSpacing
+  local outputHeight = outputRows * nodeSpacing
+  local outputX, outputY = hiddenX + hiddenWidth + 160, layerRectStartY  -- Adjusted based on hidden width
+
+  -- Draw connections from input to hidden layer with color-coded weights and thickness based on magnitude
+  for i = 1, nn.hiddenNodes do
+    local hiddenRow = (i - 1) % maxNodesPerColumn  -- Determine row (0-based)
+    local hiddenColumn = math.floor((i - 1) / maxNodesPerColumn)  -- Determine column
+
+    for j = 1, nn.inputNodes do
+      local weight = nn.weightsInputHidden[i][j]
+      local color = (weight > 0) and {0, weight, 0} or {math.abs(weight), 0, 0}
+      love.graphics.setColor(color)
+      love.graphics.setLineWidth(math.abs(weight) * 5)
+
+      -- Calculate the perimeter points on the input and hidden nodes
+      local inputColumn = math.floor((j - 1) / maxNodesPerColumn)
+      local inputRow = (j - 1) % maxNodesPerColumn
+      local inputCenterX = inputX + inputColumn * nodeSpacing
+      local inputCenterY = inputY + inputRow * nodeSpacing
+      local hiddenCenterX = hiddenX + hiddenColumn * nodeSpacing
+      local hiddenCenterY = hiddenY + hiddenRow * nodeSpacing
+
+      local inputPerimeterX, inputPerimeterY = getPerimeterPoint(inputCenterX, inputCenterY, hiddenCenterX, hiddenCenterY, nodeRadius)
+      local hiddenPerimeterX, hiddenPerimeterY = getPerimeterPoint(hiddenCenterX, hiddenCenterY, inputCenterX, inputCenterY, nodeRadius)
+
+      -- Draw the line from the perimeter of the input node to the perimeter of the hidden node
+      love.graphics.line(inputPerimeterX, inputPerimeterY, hiddenPerimeterX, hiddenPerimeterY)
+    end
+  end
+
+  -- Draw connections from hidden to output layer with color-coded weights and thickness
+  for i = 1, nn.outputNodes do
+    for j = 1, nn.hiddenNodes do
+      local weight = nn.weightsHiddenOutput[i][j]
+      local color = (weight > 0) and {0, weight, 0} or {math.abs(weight), 0, 0}
+      love.graphics.setColor(color)
+      love.graphics.setLineWidth(math.abs(weight) * 5)
+
+      local hiddenRow = (j - 1) % maxNodesPerColumn
+      local hiddenColumn = math.floor((j - 1) / maxNodesPerColumn)
+
+      -- Calculate the perimeter points on the hidden and output nodes
+      local hiddenCenterX = hiddenX + hiddenColumn * nodeSpacing
+      local hiddenCenterY = hiddenY + hiddenRow * nodeSpacing
+      local outputColumn = math.floor((i - 1) / maxNodesPerColumn)
+      local outputRow = (i - 1) % maxNodesPerColumn
+      local outputCenterX = outputX + outputColumn * nodeSpacing
+      local outputCenterY = outputY + outputRow * nodeSpacing
+
+      local hiddenPerimeterX, hiddenPerimeterY = getPerimeterPoint(hiddenCenterX, hiddenCenterY, outputCenterX, outputCenterY, nodeRadius)
+      local outputPerimeterX, outputPerimeterY = getPerimeterPoint(outputCenterX, outputCenterY, hiddenCenterX, hiddenCenterY, nodeRadius)
+
+      -- Draw the line from the perimeter of the hidden node to the perimeter of the output node
+      love.graphics.line(hiddenPerimeterX, hiddenPerimeterY, outputPerimeterX, outputPerimeterY)
+    end
+  end
+
+  -- Reset drawing settings
+  love.graphics.setColor(1, 1, 1)
+  love.graphics.setLineWidth(1)
+
+  -- Draw Input Layer section
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", inputX - 110, inputY - 60, inputWidth + 100, inputHeight + 60)
+  love.graphics.print("Input Layer", inputX - 100, inputY - 50)
+
+  -- Draw input layer nodes
+  for i = 1, nn.inputNodes do
+    local inputColumn = math.floor((i - 1) / maxNodesPerColumn)
+    local inputRow = (i - 1) % maxNodesPerColumn
+    love.graphics.setColor(0.6, 0.6, 1)
+    love.graphics.circle("fill", inputX + inputColumn * nodeSpacing, inputY + inputRow * nodeSpacing, nodeRadius)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Input: " .. trainingData[trainingIndex].inputs[i], inputX + inputColumn * nodeSpacing - 70, inputY + inputRow * nodeSpacing - 10)
+  end
+
+  -- Feedforward step to get hidden and output values
+  local hidden, output = nn:feedforward(trainingData[trainingIndex].inputs)
+
+  -- Draw Hidden Layer section
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", hiddenX - 110, hiddenY - 60, hiddenWidth + 100, hiddenHeight + 60)
+  love.graphics.print("Hidden Layer", hiddenX - 100, hiddenY - 50)
+
+  -- Draw hidden layer nodes with activation values
+  for i = 1, nn.hiddenNodes do
+    local hiddenRow = (i - 1) % maxNodesPerColumn
+    local hiddenColumn = math.floor((i - 1) / maxNodesPerColumn)
+    love.graphics.setColor(0.6, 1, 0.6)
+    love.graphics.circle("fill", hiddenX + hiddenColumn * nodeSpacing, hiddenY + hiddenRow * nodeSpacing, nodeRadius)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(string.format("H: %.2f", hidden[i]), hiddenX + hiddenColumn * nodeSpacing - 50, hiddenY + hiddenRow * nodeSpacing - 10)
+  end
+
+  -- Draw Output Layer section
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", outputX - 110, outputY - 60, outputWidth + 100, outputHeight + 60)
+  love.graphics.print("Output Layer", outputX - 100, outputY - 50)
+
+  -- Draw output layer nodes with activation values
+  for i = 1, nn.outputNodes do
+    local outputColumn = math.floor((i - 1) / maxNodesPerColumn)
+    local outputRow = (i - 1) % maxNodesPerColumn
+    love.graphics.setColor(1, 0.6, 0.6)
+    love.graphics.circle("fill", outputX + outputColumn * nodeSpacing, outputY + outputRow * nodeSpacing, nodeRadius)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(string.format("O: %.2f", output[i]), outputX + outputColumn * nodeSpacing - 30, outputY + outputRow * nodeSpacing - 10)
+  end
+
+  -- Draw Neural Network Rectangle
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", 10, NeuralNetworkRectY, 1700, 520)
+  love.graphics.print("Neural Network", 20, 120)
+
+  -- Draw Error History Graph at the bottom left
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", 10, 650, 380, 200)
+  love.graphics.print("Error History", 20, 630)
+
+  -- Error history graph
+  local graphWidth = 360
+  local graphHeight = 100
+  local xOffset = 10
+  local yOffset = 850
+
+  -- Background for the graph
+  love.graphics.setColor(0.2, 0.2, 0.2)
+  love.graphics.rectangle("fill", xOffset, yOffset - graphHeight, graphWidth, graphHeight)
+
+  -- Draw error graph
+  love.graphics.setColor(0, 0, 1)
+  if #errorHistory > 1 then
+    local maxError = math.max(unpack(errorHistory))
+    local step = graphWidth / #errorHistory
+    for i = 2, #errorHistory do
+      local x1 = xOffset + (i - 1) * step
+      local x2 = xOffset + i * step
+      local y1 = yOffset - (errorHistory[i - 1] / maxError) * graphHeight
+      local y2 = yOffset - (errorHistory[i] / maxError) * graphHeight
+      love.graphics.line(x1, y1, x2, y2)
+    end
+  end
+
+  -- Add percentage labels to the error graph (0%, 20%, 40%, etc.)
+  love.graphics.setColor(1, 1, 1)
+  for i = 0, 5 do
+    local yPos = yOffset - (i / 5) * graphHeight
+    love.graphics.print(string.format("%d%%", i * 20), xOffset, yPos - 15)
+    love.graphics.line(xOffset, yPos, xOffset + graphWidth, yPos)  -- Draw horizontal lines for clarity
+  end
+
+  -- Display the most recent error value
+  if #errorHistory > 0 then
+    local latestError = errorHistory[#errorHistory]
+    love.graphics.print(string.format("Latest Error: %.4f", latestError), xOffset, yOffset + 10)
+  end
+
+  -- Draw Accuracy Indicator at the top right
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", 1350, 10, 360, 60)
+  love.graphics.print("Model Accuracy", 1360, 20)
+
+  if #errorHistory > 0 then
+    local latestError = errorHistory[#errorHistory]
+    local accuracy = 1 - math.min(latestError, 1)
+    local color = {1 - accuracy, accuracy, 0}
+    love.graphics.setColor(color)
+    love.graphics.rectangle("fill", 1350, 40, 360, 30)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Accuracy Indicator", 1360, 40)
+  end
+
+  -- Draw Explanatory Keys (Legend) at the bottom right
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", 1300, 630, 410, 240)  -- Adjust rectangle height for the new text
+
+  -- Correct the vertical positions of the text so it's inside the rectangle
+  local legendX = 1310
+  local legendY = 640  -- Start the text inside the rectangle
+
+  -- Title
+  love.graphics.print("Legend:", legendX, legendY)
+
+  -- Color Codes for Weights
+  love.graphics.print("Weight Colors:", legendX, legendY + 20)
+  love.graphics.print("  Green = Positive Weight", legendX + 10, legendY + 40)
+  love.graphics.print("  Red = Negative Weight", legendX + 10, legendY + 60)
+
+  -- Line Thickness Explanation
+  love.graphics.print("Line Thickness:", legendX, legendY + 80)
+  love.graphics.print("  Thicker = Stronger Weight", legendX + 10, legendY + 100)
+
+  -- Line Colors for Connections
+  love.graphics.print("Line Colors:", legendX, legendY + 120)
+  love.graphics.print("  Bright = Larger Value", legendX + 10, legendY + 140)
+  love.graphics.print("  Dark = Smaller Value", legendX + 10, legendY + 160)
+
+  -- Error Graph Explanation
+  love.graphics.print("Error Graph:", legendX, legendY + 180)
+  love.graphics.print("  Tracks Error Over Time", legendX + 10, legendY + 200)
+
+  -- Accuracy Indicator Explanation
+  love.graphics.print("Accuracy Indicator:", legendX + 200, legendY + 20)
+  love.graphics.print("  Green = High Accuracy", legendX + 210, legendY + 40)
+  love.graphics.print("  Red = Low Accuracy", legendX + 210, legendY + 60)
+
+  -- Display Training Status section
+  love.graphics.setColor(0.8, 0.8, 0.8)
+  love.graphics.rectangle("line", 10, 10, 600, 80)
+  love.graphics.setColor(1, 1, 1)
+  love.graphics.print("Press Space to start/stop training", 20, 20)
+  love.graphics.print(string.format("Learning Rate: %.2f", learningRate), 20, 40)
+  love.graphics.print("Press Up/Down to adjust Learning Rate", 20, 60)
+
+  love.graphics.print("Epoch: " .. currentEpoch .. " / " .. maxEpochs, 280, 20)
+  love.graphics.print("Training Status:", 280, 40)
+  love.graphics.print("Training on Example " .. trainingIndex .. " of " .. #trainingData, 280, 60)
+
+  love.graphics.print(isTraining and "Training..." or "Training Paused", 470, 40)
+end
+-- Toggle training and adjust learning rate
+function love.keypressed(key)
+  if key == "space" then
+    isTraining = not isTraining
+  elseif key == "up" then
+    learningRate = learningRate + 0.01
+  elseif key == "down" then
+    learningRate = learningRate - 0.01
+  end
+end
